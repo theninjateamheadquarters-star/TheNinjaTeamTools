@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Image Snap & Collage Tool (Clean Export, Multi-Move)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #111;
+      color: #eee;
+    }
+    h1 {
+      font-size: 20px;
+      margin-top: 0;
+    }
+    #controls {
+      margin-bottom: 10px;
+    }
+    #canvasWrapper {
+      border: 1px solid #555;
+      background: #222;
+      width: 800px;
+      height: 500px;
+      position: relative;
+    }
+    #canvas {
+      background: #333;
+      display: block;
+    }
+    #thumbs {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    #thumbs img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    #thumbs img.selected {
+      border-color: #0f0;
+    }
+    button {
+      margin-right: 5px;
+      margin-top: 5px;
+    }
+    #hint {
+      font-size: 12px;
+      color: #ccc;
+      margin-top: 4px;
+    }
+    .panel {
+      margin-top: 10px;
+      padding: 8px;
+      border: 1px solid #444;
+      background: #181818;
+      font-size: 12px;
+    }
+    .panel h2 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+    }
+    .panel label {
+      margin-right: 10px;
+    }
+    input[type="color"],
+    input[type="range"] {
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <h1>Image Snap & Collage Tool (Clean Export, Multi-Move)</h1>
+
+  <div id="controls">
+    <input type="file" id="fileInput" multiple accept="image/*" />
+
+    <button id="rotateLeft">Rotate Left</button>
+    <button id="rotateRight">Rotate Right</button>
+
+    <button id="bringForward">Bring Forward</button>
+    <button id="sendBackward">Send Backward</button>
+
+    <button id="duplicate">Duplicate</button>
+    <button id="merge">Merge Selected</button>
+    <button id="selectAll">Select All</button>
+
+    <button id="download">Download Result</button>
+
+    <div id="hint">
+      Drag to move. Drag corner squares to resize. Q/E rotate, [ and ] layer,
+      Delete removes selected. Ctrl+click to multi-select. Ctrl+D duplicates.
+      “Select All” then drag to move everything. Download has no green lines/grid.
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Canvas & Snap Options</h2>
+    <label>
+      Background:
+      <input type="color" id="bgColor" value="#333333" />
+    </label>
+
+    <label>
+      Show Grid:
+      <input type="checkbox" id="showGrid" checked />
+    </label>
+
+    <label>
+      Snap:
+      <input type="checkbox" id="snapToggle" checked />
+    </label>
+
+    <label>
+      Snap Distance:
+      <input type="range" id="snapRange" min="0" max="50" value="10" />
+      <span id="snapValue">10</span> px
+    </label>
+
+    <br />
+
+    <label>
+      Selected Opacity:
+      <input type="range" id="opacityRange" min="10" max="100" value="100" />
+      <span id="opacityValue">100%</span>
+    </label>
+  </div>
+
+  <div id="canvasWrapper">
+    <canvas id="canvas" width="800" height="500"></canvas>
+  </div>
+
+  <div id="thumbs"></div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const fileInput = document.getElementById("fileInput");
+    const thumbs = document.getElementById("thumbs");
+
+    const rotateLeftBtn = document.getElementById("rotateLeft");
+    const rotateRightBtn = document.getElementById("rotateRight");
+    const bringForwardBtn = document.getElementById("bringForward");
+    const sendBackwardBtn = document.getElementById("sendBackward");
+    const duplicateBtn = document.getElementById("duplicate");
+    const mergeBtn = document.getElementById("merge");
+    const selectAllBtn = document.getElementById("selectAll");
+    const downloadBtn = document.getElementById("download");
+
+    const bgColorInput = document.getElementById("bgColor");
+    const showGridInput = document.getElementById("showGrid");
+    const snapToggleInput = document.getElementById("snapToggle");
+    const snapRangeInput = document.getElementById("snapRange");
+    const snapValueLabel = document.getElementById("snapValue");
+    const opacityRangeInput = document.getElementById("opacityRange");
+    const opacityValueLabel = document.getElementById("opacityValue");
+
+    let SNAP_DISTANCE = 10;
+    const HANDLE_SIZE = 10;
+    const GRID_SPACING = 50;
+
+    let shapes = [];
+    let selectedShapes = [];
+
+    let isDragging = false;
+    let isResizing = false;
+    let activeHandle = null;
+    let dragOffsets = new Map();
+    let resizeStart = null;
+
+    function drawAll(showOverlays = true) {
+      ctx.save();
+      ctx.fillStyle = bgColorInput.value;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+
+      if (showOverlays && showGridInput.checked) {
+        drawGrid();
+      }
+
+      for (const s of shapes) {
+        if (!s.img.complete) continue;
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.rotation);
+
+        const isSel = selectedShapes.includes(s);
+        if (showOverlays && isSel) {
+          const opacity = opacityRangeInput.value / 100;
+          ctx.globalAlpha = opacity;
+        }
+
+        ctx.drawImage(s.img, -s.w / 2, -s.h / 2, s.w, s.h);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+
+      if (showOverlays) {
+        selectedShapes.forEach((s) => drawSelection(s));
+      }
+    }
+
+    function drawGrid() {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.09)";
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x < canvas.width; x += GRID_SPACING) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, canvas.height);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y < canvas.height; y += GRID_SPACING) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(canvas.width, y + 0.5);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawSelection(s) {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.rotation);
+
+      ctx.strokeStyle = selectedShapes.length > 1 ? "#0ff" : "#0f0";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-s.w / 2, -s.h / 2, s.w, s.h);
+
+      drawHandle(-s.w / 2, -s.h / 2);
+      drawHandle(s.w / 2, -s.h / 2);
+      drawHandle(-s.w / 2, s.h / 2);
+      drawHandle(s.w / 2, s.h / 2);
+
+      ctx.restore();
+    }
+
+    function drawHandle(x, y) {
+      ctx.fillStyle = "#0f0";
+      ctx.fillRect(
+        x - HANDLE_SIZE / 2,
+        y - HANDLE_SIZE / 2,
+        HANDLE_SIZE,
+        HANDLE_SIZE
+      );
+    }
+
+    function addImage(img) {
+      const maxW = 200;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      const w = img.width * scale;
+      const h = img.height * scale;
+
+      const shape = {
+        img,
+        x: canvas.width / 2 + (Math.random() * 40 - 20),
+        y: canvas.height / 2 + (Math.random() * 40 - 20),
+        w,
+        h,
+        rotation: 0
+      };
+
+      shapes.push(shape);
+      selectedShapes = [shape];
+
+      addThumb(img);
+      highlightSelectedThumbs();
+
+      drawAll();
+    }
+
+    function addThumb(img) {
+      const thumb = document.createElement("img");
+      thumb.src = img.src;
+      thumb.addEventListener("click", () => {
+        const found = shapes.filter((s) => s.img === img);
+        selectedShapes = found.length ? [found[0]] : [];
+        highlightSelectedThumbs();
+        drawAll();
+      });
+      thumbs.appendChild(thumb);
+    }
+
+    function highlightSelectedThumbs() {
+      const imgs = thumbs.querySelectorAll("img");
+      imgs.forEach((img) => img.classList.remove("selected"));
+      if (!selectedShapes.length) return;
+
+      selectedShapes.forEach((s) => {
+        const thumb = Array.from(imgs).find((i) => i.src === s.img.src);
+        if (thumb) thumb.classList.add("selected");
+      });
+    }
+
+    fileInput.addEventListener("change", (e) => {
+      const files = Array.from(e.target.files);
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const img = new Image();
+          img.onload = () => addImage(img);
+          img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    function getMousePos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+        y: (evt.clientY - rect.top) * (canvas.height / rect.height)
+      };
+    }
+
+    function getLocalCoords(x, y, s) {
+      const dx = x - s.x;
+      const dy = y - s.y;
+      const cos = Math.cos(-s.rotation);
+      const sin = Math.sin(-s.rotation);
+      return {
+        x: dx * cos - dy * sin,
+        y: dx * sin + dy * cos
+      };
+    }
+
+    function isPointInShape(x, y, s) {
+      const local = getLocalCoords(x, y, s);
+      return Math.abs(local.x) <= s.w / 2 && Math.abs(local.y) <= s.h / 2;
+    }
+
+    function hitTestHandle(x, y, s) {
+      const local = getLocalCoords(x, y, s);
+      const corners = {
+        tl: { x: -s.w / 2, y: -s.h / 2 },
+        tr: { x: s.w / 2, y: -s.h / 2 },
+        bl: { x: -s.w / 2, y: s.h / 2 },
+        br: { x: s.w / 2, y: s.h / 2 }
+      };
+      for (const key in corners) {
+        const c = corners[key];
+        if (
+          Math.abs(local.x - c.x) <= HANDLE_SIZE / 2 &&
+          Math.abs(local.y - c.y) <= HANDLE_SIZE / 2
+        ) {
+          return key;
+        }
+      }
+      return null;
+    }
+
+    canvas.addEventListener("mousedown", (e) => {
+      const pos = getMousePos(e);
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      if (selectedShapes.length === 1) {
+        const s = selectedShapes[0];
+        const handle = hitTestHandle(pos.x, pos.y, s);
+        if (handle) {
+          isResizing = true;
+          activeHandle = handle;
+          isDragging = false;
+          resizeStart = {
+            mouseX: pos.x,
+            mouseY: pos.y,
+            w: s.w,
+            h: s.h
+          };
+          return;
+        }
+      }
+
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        const s = shapes[i];
+        if (isPointInShape(pos.x, pos.y, s)) {
+          if (ctrl) {
+            if (selectedShapes.includes(s)) {
+              selectedShapes = selectedShapes.filter((x) => x !== s);
+            } else {
+              selectedShapes.push(s);
+            }
+          } else {
+            selectedShapes = [s];
+          }
+          highlightSelectedThumbs();
+
+          dragOffsets.clear();
+          selectedShapes.forEach((sh) => {
+            const local = getLocalCoords(pos.x, pos.y, sh);
+            dragOffsets.set(sh, { localX: local.x, localY: local.y });
+          });
+
+          isDragging = true;
+          isResizing = false;
+          activeHandle = null;
+          drawAll();
+          return;
+        }
+      }
+
+      if (!ctrl) {
+        selectedShapes = [];
+        highlightSelectedThumbs();
+        drawAll();
+      }
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      const pos = getMousePos(e);
+
+      if (
+        isResizing &&
+        selectedShapes.length === 1 &&
+        activeHandle &&
+        resizeStart
+      ) {
+        const s = selectedShapes[0];
+        const localStart = getLocalCoords(
+          resizeStart.mouseX,
+          resizeStart.mouseY,
+          s
+        );
+        const localNow = getLocalCoords(pos.x, pos.y, s);
+
+        let dx = localNow.x - localStart.x;
+        let dy = localNow.y - localStart.y;
+
+        let newW = resizeStart.w;
+        let newH = resizeStart.h;
+
+        if (activeHandle === "tr" || activeHandle === "br") {
+          newW = resizeStart.w + dx;
+        } else if (activeHandle === "tl" || activeHandle === "bl") {
+          newW = resizeStart.w - dx;
+        }
+
+        if (activeHandle === "bl" || activeHandle === "br") {
+          newH = resizeStart.h + dy;
+        } else if (activeHandle === "tl" || activeHandle === "tr") {
+          newH = resizeStart.h - dy;
+        }
+
+        const minSize = 20;
+        newW = Math.max(minSize, newW);
+        newH = Math.max(minSize, newH);
+
+        s.w = newW;
+        s.h = newH;
+
+        drawAll();
+        return;
+      }
+
+      if (!isDragging || !selectedShapes.length) return;
+
+      // Move ALL selected shapes together using their stored offsets
+      selectedShapes.forEach((s) => {
+        const offset = dragOffsets.get(s);
+        if (!offset) return;
+        const local = getLocalCoords(pos.x, pos.y, s);
+        const dx = local.x - offset.localX;
+        const dy = local.y - offset.localY;
+        const cos = Math.cos(s.rotation);
+        const sin = Math.sin(s.rotation);
+        let newX = s.x + dx * cos - dy * sin;
+        let newY = s.y + dx * sin + dy * cos;
+
+        if (snapToggleInput.checked) {
+          shapes.forEach((other) => {
+            if (other === s) return;
+            if (Math.abs(newX - other.x) < SNAP_DISTANCE) newX = other.x;
+            if (Math.abs(newY - other.y) < SNAP_DISTANCE) newY = other.y;
+          });
+        }
+
+        s.x = newX;
+        s.y = newY;
+      });
+
+      drawAll();
+    });
+
+    window.addEventListener("mouseup", () => {
+      isDragging = false;
+      isResizing = false;
+      activeHandle = null;
+      resizeStart = null;
+      dragOffsets.clear();
+    });
+
+    rotateLeftBtn.addEventListener("click", () => {
+      selectedShapes.forEach((s) => {
+        s.rotation -= Math.PI / 12;
+      });
+      drawAll();
+    });
+
+    rotateRightBtn.addEventListener("click", () => {
+      selectedShapes.forEach((s) => {
+        s.rotation += Math.PI / 12;
+      });
+      drawAll();
+    });
+
+    bringForwardBtn.addEventListener("click", () => {
+      if (!selectedShapes.length) return;
+      selectedShapes.forEach((s) => {
+        const idx = shapes.indexOf(s);
+        if (idx >= 0 && idx < shapes.length - 1) {
+          shapes.splice(idx, 1);
+          shapes.push(s);
+        }
+      });
+      drawAll();
+    });
+
+    sendBackwardBtn.addEventListener("click", () => {
+      if (!selectedShapes.length) return;
+      selectedShapes
+        .slice()
+        .reverse()
+        .forEach((s) => {
+          const idx = shapes.indexOf(s);
+          if (idx > 0) {
+            shapes.splice(idx, 1);
+            shapes.unshift(s);
+          }
+        });
+      drawAll();
+    });
+
+    duplicateBtn.addEventListener("click", () => {
+      duplicateSelection();
+    });
+
+    selectAllBtn.addEventListener("click", () => {
+      selectedShapes = shapes.slice();
+      highlightSelectedThumbs();
+      drawAll();
+    });
+
+    mergeBtn.addEventListener("click", () => {
+      mergeSelection();
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      const link = document.createElement("a");
+      drawAll(false);
+      const url = canvas.toDataURL("image/png");
+      drawAll(true);
+      link.download = "collage.png";
+      link.href = url;
+      link.click();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (!selectedShapes.length) return;
+
+      const step = e.shiftKey ? 10 : 1;
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        shapes = shapes.filter((s) => !selectedShapes.includes(s));
+        selectedShapes = [];
+        highlightSelectedThumbs();
+        drawAll();
+      } else if (e.key === "q" || e.key === "Q") {
+        selectedShapes.forEach((s) => {
+          s.rotation -= Math.PI / 36;
+        });
+        drawAll();
+      } else if (e.key === "e" || e.key === "E") {
+        selectedShapes.forEach((s) => {
+          s.rotation += Math.PI / 36;
+        });
+        drawAll();
+      } else if (e.key === "[" || e.key === "{") {
+        selectedShapes
+          .slice()
+          .reverse()
+          .forEach((s) => {
+            const idx = shapes.indexOf(s);
+            if (idx > 0) {
+              shapes.splice(idx, 1);
+              shapes.unshift(s);
+            }
+          });
+        drawAll();
+      } else if (e.key === "]" || e.key === "}") {
+        selectedShapes.forEach((s) => {
+          const idx = shapes.indexOf(s);
+          if (idx >= 0 && idx < shapes.length - 1) {
+            shapes.splice(idx, 1);
+            shapes.push(s);
+          }
+        });
+        drawAll();
+      } else if (e.key === "ArrowLeft") {
+        selectedShapes.forEach((s) => (s.x -= step));
+        drawAll();
+      } else if (e.key === "ArrowRight") {
+        selectedShapes.forEach((s) => (s.x += step));
+        drawAll();
+      } else if (e.key === "ArrowUp") {
+        selectedShapes.forEach((s) => (s.y -= step));
+        drawAll();
+      } else if (e.key === "ArrowDown") {
+        selectedShapes.forEach((s) => (s.y += step));
+        drawAll();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        duplicateSelection();
+      }
+    });
+
+    snapRangeInput.addEventListener("input", () => {
+      SNAP_DISTANCE = parseInt(snapRangeInput.value, 10) || 0;
+      snapValueLabel.textContent = SNAP_DISTANCE;
+    });
+
+    opacityRangeInput.addEventListener("input", () => {
+      const value = parseInt(opacityRangeInput.value, 10) || 100;
+      opacityValueLabel.textContent = value + "%";
+      drawAll();
+    });
+
+    bgColorInput.addEventListener("input", () => {
+      drawAll();
+    });
+
+    showGridInput.addEventListener("change", () => {
+      drawAll();
+    });
+
+    snapToggleInput.addEventListener("change", () => {
+      drawAll();
+    });
+
+    function duplicateSelection() {
+      if (!selectedShapes.length) return;
+      const newSelections = [];
+      selectedShapes.forEach((s) => {
+        const cloneImg = new Image();
+        cloneImg.src = s.img.src;
+        const clone = {
+          img: cloneImg,
+          x: s.x + 20,
+          y: s.y + 20,
+          w: s.w,
+          h: s.h,
+          rotation: s.rotation
+        };
+        shapes.push(clone);
+        newSelections.push(clone);
+      });
+      selectedShapes = newSelections;
+      highlightSelectedThumbs();
+      drawAll();
+    }
+
+    function mergeSelection() {
+      if (selectedShapes.length < 2) return;
+
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+
+      selectedShapes.forEach((s) => {
+        const corners = [
+          { x: -s.w / 2, y: -s.h / 2 },
+          { x: s.w / 2, y: -s.h / 2 },
+          { x: -s.w / 2, y: s.h / 2 },
+          { x: s.w / 2, y: s.h / 2 }
+        ];
+        corners.forEach((c) => {
+          const cos = Math.cos(s.rotation);
+          const sin = Math.sin(s.rotation);
+          const gx = s.x + c.x * cos - c.y * sin;
+          const gy = s.y + c.x * sin + c.y * cos;
+          if (gx < minX) minX = gx;
+          if (gy < minY) minY = gy;
+          if (gx > maxX) maxX = gx;
+          if (gy > maxY) maxY = gy;
+        });
+      });
+
+      const w = Math.max(1, Math.ceil(maxX - minX));
+      const h = Math.max(1, Math.ceil(maxY - minY));
+
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = w;
+      offCanvas.height = h;
+      const octx = offCanvas.getContext("2d");
+
+      octx.fillStyle = bgColorInput.value;
+      octx.fillRect(0, 0, w, h);
+
+      selectedShapes.forEach((s) => {
+        octx.save();
+        octx.translate(s.x - minX, s.y - minY);
+        octx.rotate(s.rotation);
+        octx.drawImage(s.img, -s.w / 2, -s.h / 2, s.w, s.h);
+        octx.restore();
+      });
+
+      const mergedImg = new Image();
+      mergedImg.onload = () => {
+        shapes = shapes.filter((s) => !selectedShapes.includes(s));
+        const mergedShape = {
+          img: mergedImg,
+          x: (minX + maxX) / 2,
+          y: (minY + maxY) / 2,
+          w: w,
+          h: h,
+          rotation: 0
+        };
+        shapes.push(mergedShape);
+        selectedShapes = [mergedShape];
+        highlightSelectedThumbs();
+        drawAll();
+      };
+      mergedImg.src = offCanvas.toDataURL("image/png");
+    }
+
+    drawAll();
+  </script>
+</body>
+</html>
