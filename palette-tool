@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Offline Palette & Color Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    /* =========================
+       BASE LAYOUT & THEME
+       ========================= */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #020617, #020617 40%, #000 100%);
+      color: #e5e7eb;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 16px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1100px;
+      background: #020617;
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.9);
+      padding: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.4fr);
+      gap: 16px;
+      min-height: 0;
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    h1 {
+      font-size: 18px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin-bottom: 6px;
+    }
+
+    p {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 6px;
+    }
+
+    a {
+      color: #38bdf8;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* =========================
+       PANELS
+       ========================= */
+    .panel {
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: radial-gradient(circle at top left, #020617, #020617 45%, #0b1120 100%);
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .panel-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+
+    .panel-sub {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .info-text {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    label {
+      font-size: 12px;
+      color: #9ca3af;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    input[type="file"] {
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: 4px 6px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"]::placeholder {
+      color: #4b5563;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 6px;
+    }
+
+    /* =========================
+       BUTTONS
+       ========================= */
+    button {
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      background: rgba(15, 23, 42, 0.96);
+      color: #e5e7eb;
+      font-size: 12px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, border-color 0.08s ease;
+    }
+
+    button.primary {
+      border-color: rgba(56, 189, 248, 0.8);
+      background: radial-gradient(circle at top, rgba(56, 189, 248, 0.3), #020617);
+      color: #e0f2fe;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
+    }
+
+    button.danger {
+      border-color: rgba(248, 113, 113, 0.8);
+      background: radial-gradient(circle at top, rgba(248, 113, 113, 0.2), #020617);
+      color: #fee2e2;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: #38bdf8;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.9);
+    }
+
+    button.danger:hover {
+      border-color: #f97373;
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    /* =========================
+       LEFT SIDE – IMAGE & EXTRACT
+       ========================= */
+    .preview-wrap {
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      padding: 6px;
+      margin-top: 4px;
+    }
+
+    .preview-img {
+      max-width: 100%;
+      display: block;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+      background: #020617;
+    }
+
+    .stat-line {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+
+    .stat-line span {
+      color: #e5e7eb;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    /* =========================
+       RIGHT SIDE – PALETTE
+       ========================= */
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .swatch {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #1f2937;
+      background: #020617;
+      cursor: pointer;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .swatch-color {
+      position: absolute;
+      inset: 0;
+    }
+
+    .swatch-overlay {
+      position: relative;
+      padding: 4px 6px;
+      background: linear-gradient(180deg, rgba(15,23,42,0.1), rgba(15,23,42,0.8));
+      z-index: 1;
+      font-size: 10px;
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .swatch-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .swatch-label {
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .swatch-tag {
+      font-size: 9px;
+      color: #d1d5db;
+    }
+
+    .swatch-copy {
+      font-size: 9px;
+      color: #9ca3af;
+    }
+
+    .swatch.active {
+      border-color: #a855f7;
+      box-shadow: 0 0 16px rgba(168, 85, 247, 0.8);
+    }
+
+    .palette-header-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .palette-name-input {
+      flex: 1;
+    }
+
+    .palette-select {
+      width: 100%;
+    }
+
+    select {
+      width: 100%;
+      padding: 4px 6px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 70px;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 12px;
+      padding: 4px 6px;
+      resize: vertical;
+    }
+
+    textarea::placeholder {
+      color: #4b5563;
+    }
+
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .chip {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      background: rgba(15,23,42,0.96);
+      color: #9ca3af;
+      cursor: pointer;
+    }
+
+    .chip.active {
+      border-color: rgba(56,189,248,0.8);
+      color: #e0f2fe;
+      background: radial-gradient(circle at top, rgba(56,189,248,0.3), #020617);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.95);
+      border: 1px solid rgba(56,189,248,0.7);
+      color: #e0f2fe;
+      font-size: 11px;
+      box-shadow: 0 12px 30px rgba(15,23,42,0.9);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+      z-index: 50;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT: image + extraction -->
+    <section>
+      <h1>Palette & Color Tool</h1>
+      <p>
+        Drop a reference image, extract colors, build palettes, and keep them saved locally for your 2D projects.[web:78][web:80][web:82]
+      </p>
+
+      <div class="panel">
+        <div class="panel-title">1 · Choose image</div>
+        <div class="panel-sub">Image stays local in your browser; nothing is uploaded.</div>
+        <input id="file-input" type="file" accept="image/*">
+        <p class="info-text">
+          Works great for key art, backgrounds, character sheets, or UI screenshots.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">2 · Extract colors</div>
+        <div class="field-row">
+          <div>
+            <label for="color-count">Colors to extract</label>
+            <input id="color-count" type="number" min="2" max="24" value="8">
+          </div>
+          <div>
+            <label for="sample-quality">Sampling quality</label>
+            <input id="sample-quality" type="range" min="1" max="6" value="3">
+          </div>
+        </div>
+        <p class="panel-sub">
+          Higher sampling = slower but more accurate on big images. Start around 3.
+        </p>
+        <div class="btn-row">
+          <button id="extract-btn" class="primary" type="button">Extract palette from image</button>
+          <button id="clear-image-btn" type="button">Clear image</button>
+        </div>
+        <p class="info-text">
+          Uses a simple averaging approach over a grid; good enough for quick palettes without heavy clustering math.[web:59]
+        </p>
+        <div class="stat-line">Image: <span id="image-info">none loaded</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">3 · Preview</div>
+        <div class="preview-wrap">
+          <img id="image-preview" class="preview-img" alt="Preview" style="display:none;">
+        </div>
+        <p class="info-text">
+          This preview is just for you; palette extraction is done with an off‑screen canvas.
+        </p>
+      </div>
+
+      <canvas id="hidden-canvas"></canvas>
+    </section>
+
+    <!-- RIGHT: palette handling -->
+    <section>
+      <div class="panel">
+        <div class="palette-header-row">
+          <div class="palette-name-input">
+            <div class="panel-title">4 · Active palette</div>
+            <input id="palette-name-input" type="text" placeholder="Palette name (e.g. Neon UI, Forest dusk)">
+          </div>
+          <div style="width: 40%;">
+            <label for="palette-select">Saved palettes</label>
+            <select id="palette-select" class="palette-select">
+              <option value="">(none)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button id="save-palette-btn" class="primary" type="button">Save / update palette</button>
+          <button id="delete-palette-btn" class="danger" type="button">Delete palette</button>
+          <button id="export-palette-btn" type="button">Export as text</button>
+        </div>
+        <p class="info-text">
+          Palettes are stored in <code>localStorage</code>. You can export them as text and paste into Git, docs, or engine configs.[web:78]
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">5 · Colors in palette</div>
+        <div class="chips-row">
+          <span class="chip" data-tag="ui">UI / HUD</span>
+          <span class="chip" data-tag="char">Character</span>
+          <span class="chip" data-tag="bg">Background</span>
+          <span class="chip" data-tag="fx">FX</span>
+          <span class="chip" data-tag="line">Lineart</span>
+        </div>
+        <div class="palette-grid" id="palette-grid">
+          <!-- swatches added here -->
+        </div>
+        <p class="info-text">
+          Click a swatch to copy hex to clipboard. Tag chips help you mentally group colors while designing UI, sprites, or environments.[web:80][web:86]
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">6 · Notes</div>
+        <textarea id="notes-input" placeholder="Usage notes: primary button color, enemy armor, foliage, sky, etc."></textarea>
+        <p class="info-text">
+          Notes are saved per palette, so you can remember how each color is used in‑game.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast">Copied!</div>
+
+  <script>
+    // ============================
+    // DOM ELEMENTS
+    // ============================
+    const fileInput = document.getElementById("file-input");
+    const colorCountInput = document.getElementById("color-count");
+    const sampleQualityInput = document.getElementById("sample-quality");
+    const extractBtn = document.getElementById("extract-btn");
+    const clearImageBtn = document.getElementById("clear-image-btn");
+
+    const imagePreview = document.getElementById("image-preview");
+    const imageInfo = document.getElementById("image-info");
+    const hiddenCanvas = document.getElementById("hidden-canvas");
+    const hiddenCtx = hiddenCanvas.getContext("2d");
+
+    const paletteGrid = document.getElementById("palette-grid");
+    const paletteNameInput = document.getElementById("palette-name-input");
+    const paletteSelect = document.getElementById("palette-select");
+    const savePaletteBtn = document.getElementById("save-palette-btn");
+    const deletePaletteBtn = document.getElementById("delete-palette-btn");
+    const exportPaletteBtn = document.getElementById("export-palette-btn");
+
+    const notesInput = document.getElementById("notes-input");
+    const tagChips = document.querySelectorAll(".chip");
+    const toast = document.getElementById("toast");
+
+    // ============================
+    // STATE
+    // ============================
+    const STORAGE_KEY = "nt_palette_tool_v1";
+
+    let currentImage = {
+      width: 0,
+      height: 0,
+      src: null,
+    };
+
+    let activePalette = {
+      name: "",
+      colors: [], // { hex, r, g, b, tag? }
+      notes: ""
+    };
+
+    let savedPalettes = {}; // name -> { colors, notes }
+
+    let activeTag = null;
+
+    // ============================
+    // HELPERS
+    // ============================
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 1200);
+    }
+
+    function rgbToHex(r, g, b) {
+      const toHex = (v) => {
+        const h = v.toString(16);
+        return h.length === 1 ? "0" + h : h;
+      };
+      return "#" + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function hexToRgb(hex) {
+      let h = hex.replace("#", "");
+      if (h.length === 3) {
+        h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      }
+      const bigint = parseInt(h, 16);
+      if (Number.isNaN(bigint)) return null;
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return { r, g, b };
+    }
+
+    function copyToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          () => showToast("Copied " + text),
+          () => fallbackCopy(text)
+        );
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const temp = document.createElement("textarea");
+      temp.value = text;
+      document.body.appendChild(temp);
+      temp.select();
+      try {
+        document.execCommand("copy");
+        showToast("Copied " + text);
+      } catch (e) {
+        alert("Copy failed, but hex is: " + text);
+      }
+      document.body.removeChild(temp);
+    }
+
+    function updateImageInfo() {
+      if (!currentImage.src) {
+        imageInfo.textContent = "none loaded";
+      } else {
+        imageInfo.textContent = currentImage.width + " × " + currentImage.height;
+      }
+    }
+
+    function setActiveTag(tag) {
+      activeTag = tag;
+      tagChips.forEach(chip => {
+        const chipTag = chip.getAttribute("data-tag");
+        chip.classList.toggle("active", chipTag === tag);
+      });
+    }
+
+    // ============================
+    // IMAGE LOADING
+    // ============================
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        alert("Please choose an image file.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          currentImage.width = img.width;
+          currentImage.height = img.height;
+          currentImage.src = img.src;
+
+          imagePreview.src = img.src;
+          imagePreview.style.display = "block";
+          updateImageInfo();
+
+          hiddenCanvas.width = img.width;
+          hiddenCanvas.height = img.height;
+          hiddenCtx.clearRect(0, 0, img.width, img.height);
+          hiddenCtx.drawImage(img, 0, 0, img.width, img.height);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    clearImageBtn.addEventListener("click", () => {
+      currentImage = { width: 0, height: 0, src: null };
+      imagePreview.src = "";
+      imagePreview.style.display = "none";
+      hiddenCanvas.width = 1;
+      hiddenCanvas.height = 1;
+      hiddenCtx.clearRect(0, 0, 1, 1);
+      updateImageInfo();
+    });
+
+    // ============================
+    // PALETTE EXTRACTION
+    // ============================
+    function extractPaletteFromImage() {
+      if (!currentImage.src) {
+        alert("Load an image first.");
+        return;
+      }
+      const count = Math.max(2, Math.min(24, parseInt(colorCountInput.value, 10) || 8));
+      const quality = Math.max(1, Math.min(6, parseInt(sampleQualityInput.value, 10) || 3));
+
+      const width = hiddenCanvas.width;
+      const height = hiddenCanvas.height;
+      const imageData = hiddenCtx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+
+      const stepX = Math.max(1, Math.floor(width / (count * quality)));
+      const stepY = Math.max(1, Math.floor(height / (count * quality)));
+
+      const buckets = [];
+
+      for (let y = 0; y < height; y += stepY) {
+        for (let x = 0; x < width; x += stepX) {
+          const idx = (y * width + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const keyR = Math.round(r / 32) * 32;
+          const keyG = Math.round(g / 32) * 32;
+          const keyB = Math.round(b / 32) * 32;
+          const key = keyR + "," + keyG + "," + keyB;
+          if (!buckets[key]) {
+            buckets[key] = { rTotal: 0, gTotal: 0, bTotal: 0, count: 0 };
+          }
+          const bucket = buckets[key];
+          bucket.rTotal += r;
+          bucket.gTotal += g;
+          bucket.bTotal += b;
+          bucket.count += 1;
+        }
+      }
+
+      const colors = [];
+      for (const key in buckets) {
+        const bucket = buckets[key];
+        if (!bucket.count) continue;
+        const r = Math.round(bucket.rTotal / bucket.count);
+        const g = Math.round(bucket.gTotal / bucket.count);
+        const b = Math.round(bucket.bTotal / bucket.count);
+        colors.push({ r, g, b });
+      }
+
+      colors.sort((a, b) => {
+        const lumA = 0.299 * a.r + 0.587 * a.g + 0.114 * a.b;
+        const lumB = 0.299 * b.r + 0.587 * b.g + 0.114 * b.b;
+        return lumB - lumA;
+      });
+
+      const chosen = colors.slice(0, count);
+
+      activePalette.colors = chosen.map(c => ({
+        hex: rgbToHex(c.r, c.g, c.b),
+        r: c.r,
+        g: c.g,
+        b: c.b,
+        tag: activeTag || null
+      }));
+
+      renderPalette();
+      showToast("Extracted " + activePalette.colors.length + " colors.");
+    }
+
+    extractBtn.addEventListener("click", extractPaletteFromImage);
+
+    // ============================
+    // PALETTE RENDERING
+    // ============================
+    function renderPalette() {
+      paletteGrid.innerHTML = "";
+      if (!activePalette.colors || !activePalette.colors.length) return;
+      activePalette.colors.forEach((color, index) => {
+        const swatch = document.createElement("div");
+        swatch.className = "swatch";
+        swatch.dataset.index = index;
+
+        const colorLayer = document.createElement("div");
+        colorLayer.className = "swatch-color";
+        colorLayer.style.background = color.hex;
+
+        const overlay = document.createElement("div");
+        overlay.className = "swatch-overlay";
+
+        const metaRow = document.createElement("div");
+        metaRow.className = "swatch-meta";
+
+        const labelSpan = document.createElement("span");
+        labelSpan.className = "swatch-label";
+        labelSpan.textContent = color.hex.toUpperCase();
+
+        const tagSpan = document.createElement("span");
+        tagSpan.className = "swatch-tag";
+        tagSpan.textContent = color.tag ? color.tag : "";
+
+        metaRow.appendChild(labelSpan);
+        metaRow.appendChild(tagSpan);
+
+        const copySpan = document.createElement("span");
+        copySpan.className = "swatch-copy";
+        copySpan.textContent = "Click to copy";
+
+        overlay.appendChild(metaRow);
+        overlay.appendChild(copySpan);
+
+        swatch.appendChild(colorLayer);
+        swatch.appendChild(overlay);
+
+        swatch.addEventListener("click", () => {
+          const hex = activePalette.colors[index].hex;
+          copyToClipboard(hex);
+        });
+
+        swatch.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          const newTag = prompt("Tag for this color (e.g. UI, enemy, sky):", color.tag || "");
+          if (newTag !== null) {
+            activePalette.colors[index].tag = newTag.trim() || null;
+            renderPalette();
+          }
+        });
+
+        paletteGrid.appendChild(swatch);
+      });
+    }
+
+    // ============================
+    // TAG CHIPS
+    // ============================
+    tagChips.forEach(chip => {
+      chip.addEventListener("click", () => {
+        const tag = chip.getAttribute("data-tag");
+        if (activeTag === tag) {
+          setActiveTag(null);
+        } else {
+          setActiveTag(tag);
+        }
+      });
+    });
+
+    // ============================
+    // SAVE / LOAD PALETTES
+    // ============================
+    function loadSavedPalettes() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          savedPalettes = {};
+        } else {
+          savedPalettes = JSON.parse(raw) || {};
+        }
+      } catch (e) {
+        savedPalettes = {};
+      }
+      refreshPaletteSelect();
+    }
+
+    function savePalettesToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPalettes));
+      } catch (e) {
+        console.error("Failed to save palettes", e);
+        alert("Could not save palettes (localStorage might be full).");
+      }
+    }
+
+    function refreshPaletteSelect() {
+      const currentName = paletteSelect.value;
+      paletteSelect.innerHTML = "";
+      const optNone = document.createElement("option");
+      optNone.value = "";
+      optNone.textContent = "(none)";
+      paletteSelect.appendChild(optNone);
+
+      const names = Object.keys(savedPalettes).sort();
+      names.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        paletteSelect.appendChild(opt);
+      });
+
+      if (currentName && savedPalettes[currentName]) {
+        paletteSelect.value = currentName;
+      } else {
+        paletteSelect.value = "";
+      }
+    }
+
+    function setActivePaletteFromSaved(name) {
+      const data = savedPalettes[name];
+      if (!data) return;
+      activePalette.name = name;
+      activePalette.colors = data.colors || [];
+      activePalette.notes = data.notes || "";
+      paletteNameInput.value = name;
+      notesInput.value = activePalette.notes || "";
+      renderPalette();
+    }
+
+    paletteSelect.addEventListener("change", () => {
+      const name = paletteSelect.value;
+      if (!name) return;
+      setActivePaletteFromSaved(name);
+    });
+
+    savePaletteBtn.addEventListener("click", () => {
+      const name = (paletteNameInput.value || "").trim();
+      if (!name) {
+        alert("Give this palette a name first.");
+        return;
+      }
+      if (!activePalette.colors || !activePalette.colors.length) {
+        alert("No colors in the active palette yet.");
+        return;
+      }
+
+      activePalette.name = name;
+      activePalette.notes = notesInput.value || "";
+
+      savedPalettes[name] = {
+        colors: activePalette.colors,
+        notes: activePalette.notes
+      };
+      savePalettesToStorage();
+      refreshPaletteSelect();
+      paletteSelect.value = name;
+      showToast("Saved palette \"" + name + "\"");
+    });
+
+    deletePaletteBtn.addEventListener("click", () => {
+      const name = paletteSelect.value || paletteNameInput.value.trim();
+      if (!name || !savedPalettes[name]) {
+        alert("No saved palette selected.");
+        return;
+      }
+      if (!confirm("Delete palette \"" + name + "\"?")) return;
+      delete savedPalettes[name];
+      savePalettesToStorage();
+      refreshPaletteSelect();
+      if (paletteSelect.value) {
+        setActivePaletteFromSaved(paletteSelect.value);
+      } else {
+        activePalette = { name: "", colors: [], notes: "" };
+        paletteNameInput.value = "";
+        notesInput.value = "";
+        renderPalette();
+      }
+      showToast("Deleted palette \"" + name + "\"");
+    });
+
+    // ============================
+    // EXPORT / IMPORT
+    // ============================
+    exportPaletteBtn.addEventListener("click", () => {
+      if (!activePalette.colors || !activePalette.colors.length) {
+        alert("No colors in palette to export.");
+        return;
+      }
+      const name = activePalette.name || "unnamed_palette";
+      const lines = [];
+      lines.push("# Palette: " + name);
+      lines.push("# Notes: " + (activePalette.notes || "").replace(/\n/g, " "));
+      lines.push("# Hex, R, G, B, Tag");
+      activePalette.colors.forEach(c => {
+        lines.push(
+          [c.hex.toUpperCase(), c.r, c.g, c.b, c.tag || ""].join(", ")
+        );
+      });
+      const text = lines.join("\n");
+
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name.replace(/[^a-z0-9_\-]/gi, "_") + "_palette.txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    // ============================
+    // NOTES HANDLING
+    // ============================
+    notesInput.addEventListener("input", () => {
+      activePalette.notes = notesInput.value || "";
+      if (activePalette.name && savedPalettes[activePalette.name]) {
+        savedPalettes[activePalette.name].notes = activePalette.notes;
+        savePalettesToStorage();
+      }
+    });
+
+    // ============================
+    // INIT
+    // ============================
+    function init() {
+      updateImageInfo();
+      setActiveTag(null);
+      loadSavedPalettes();
+    }
+
+    init();
+  </script>
+</body>
+</html>
