@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Offline Pixelator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #020617, #020617 40%, #000 100%);
+      color: #e5e7eb;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 16px;
+    }
+    .app {
+      width: 100%;
+      max-width: 980px;
+      background: #020617;
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
+      padding: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+    }
+    h1 {
+      font-size: 18px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+    p { font-size: 13px; color: #9ca3af; margin-bottom: 6px; }
+    label { font-size: 12px; color: #9ca3af; display: block; margin-bottom: 4px; }
+    input[type="file"] {
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+    input[type="number"], input[type="range"] {
+      width: 100%;
+    }
+    input[type="number"] {
+      padding: 4px 6px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    input[type="range"] {
+      margin: 2px 0 6px;
+    }
+    .panel {
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: radial-gradient(circle at top left, #020617, #020617 40%, #0b1120 100%);
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .panel-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+    .info-text {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    button {
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      background: rgba(15, 23, 42, 0.96);
+      color: #e5e7eb;
+      font-size: 12px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, border-color 0.08s ease;
+    }
+    button.primary {
+      border-color: rgba(56, 189, 248, 0.8);
+      background: radial-gradient(circle at top, rgba(56, 189, 248, 0.3), #020617);
+      color: #e0f2fe;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
+    }
+    button:hover {
+      transform: translateY(-1px);
+      border-color: #38bdf8;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.9);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 2px;
+    }
+    .stat-line {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    .stat-line span {
+      color: #e5e7eb;
+    }
+    .preview-label {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+    .preview-wrap {
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      padding: 8px;
+    }
+    canvas, img {
+      max-width: 100%;
+      background: #020617;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+      display: block;
+    }
+    .hint {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT: controls -->
+    <section>
+      <h1>Pixelator</h1>
+      <p>Turn any image into chunky pixel art, offline, using HTML canvas.</p>
+
+      <div class="panel">
+        <div class="panel-title">1 · Choose image</div>
+        <input id="file-input" type="file" accept="image/*">
+        <p class="info-text">
+          Your image never leaves this browser – everything runs locally with <code>&lt;canvas&gt;</code>.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">2 · Pixel size</div>
+        <label for="pixel-size">Block size (px)</label>
+        <input id="pixel-size" type="range" min="2" max="80" value="8">
+        <input id="pixel-size-number" type="number" min="2" max="80" value="8">
+        <p class="info-text">
+          Smaller value = more detail. Bigger value = chunkier pixels.
+        </p>
+        <div class="btn-row">
+          <button id="apply-btn" class="primary" type="button">Apply pixelation</button>
+          <button id="reset-btn" type="button">Reset to original</button>
+        </div>
+        <div class="stat-line">Original: <span id="orig-size">–</span></div>
+        <div class="stat-line">Canvas: <span id="curr-size">–</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">3 · Download</div>
+        <div class="btn-row">
+          <button id="download-btn" class="primary" type="button">Download pixelated PNG</button>
+        </div>
+        <p class="info-text">
+          Uses <code>canvas.toDataURL()</code> and an <code>&lt;a download&gt;</code> link to save a PNG file you can drag into your game or art folder.
+        </p>
+      </div>
+    </section>
+
+    <!-- RIGHT: previews -->
+    <section>
+      <div class="panel" style="margin-bottom: 8px;">
+        <div class="panel-title">Original preview</div>
+        <p class="preview-label" id="orig-label">No image loaded yet.</p>
+        <div class="preview-wrap">
+          <img id="orig-preview" alt="Original" style="display:none;">
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Pixelated preview (canvas)</div>
+        <p class="preview-label" id="canvas-label">Will show after you apply pixelation.</p>
+        <div class="preview-wrap">
+          <canvas id="canvas"></canvas>
+        </div>
+        <p class="hint">
+          The pixelation works by shrinking the image to a tiny size on a hidden canvas, then drawing it back up with smoothing disabled, so every “block” is a crisp pixel.[web:57][web:59][web:63][web:67]
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("file-input");
+    const pixelSizeRange = document.getElementById("pixel-size");
+    const pixelSizeNumber = document.getElementById("pixel-size-number");
+    const applyBtn = document.getElementById("apply-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const downloadBtn = document.getElementById("download-btn");
+
+    const origPreview = document.getElementById("orig-preview");
+    const origLabel = document.getElementById("orig-label");
+    const canvas = document.getElementById("canvas");
+    const canvasLabel = document.getElementById("canvas-label");
+    const origSizeSpan = document.getElementById("orig-size");
+    const currSizeSpan = document.getElementById("curr-size");
+
+    const ctx = canvas.getContext("2d");
+
+    // hidden canvas for scaling down
+    const hiddenCanvas = document.createElement("canvas");
+    const hiddenCtx = hiddenCanvas.getContext("2d");
+
+    let originalImage = new Image();
+    let originalWidth = 0;
+    let originalHeight = 0;
+    let currentWidth = 0;
+    let currentHeight = 0;
+
+    function setImageSmoothing(context, value) {
+      context.imageSmoothingEnabled = value;
+      context.mozImageSmoothingEnabled = value;
+      context.webkitImageSmoothingEnabled = value;
+      context.msImageSmoothingEnabled = value;
+      context.oImageSmoothingEnabled = value;
+    }
+
+    function updateSizeLabels() {
+      if (originalWidth && originalHeight) {
+        origSizeSpan.textContent = originalWidth + " × " + originalHeight;
+      } else {
+        origSizeSpan.textContent = "–";
+      }
+      if (currentWidth && currentHeight) {
+        currSizeSpan.textContent = currentWidth + " × " + currentHeight;
+      } else {
+        currSizeSpan.textContent = "–";
+      }
+    }
+
+    function clearCanvas() {
+      canvas.width = 1;
+      canvas.height = 1;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      currentWidth = 0;
+      currentHeight = 0;
+      updateSizeLabels();
+    }
+
+    function drawOriginalToCanvas() {
+      if (!originalWidth || !originalHeight) return;
+      canvas.width = originalWidth;
+      canvas.height = originalHeight;
+      setImageSmoothing(ctx, true);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(originalImage, 0, 0, originalWidth, originalHeight);
+      currentWidth = originalWidth;
+      currentHeight = originalHeight;
+      canvasLabel.textContent = "Original image (no pixelation).";
+      updateSizeLabels();
+    }
+
+    function pixelateImage(blockSize) {
+      if (!originalWidth || !originalHeight) return;
+      blockSize = Math.max(2, Math.min(200, blockSize || 8));
+
+      // scale down
+      const scaledWidth = Math.max(1, Math.round(originalWidth / blockSize));
+      const scaledHeight = Math.max(1, Math.round(originalHeight / blockSize));
+
+      hiddenCanvas.width = scaledWidth;
+      hiddenCanvas.height = scaledHeight;
+      setImageSmoothing(hiddenCtx, true);
+      hiddenCtx.clearRect(0, 0, scaledWidth, scaledHeight);
+      hiddenCtx.drawImage(originalImage, 0, 0, scaledWidth, scaledHeight);
+
+      // draw scaled-up, no smoothing
+      canvas.width = originalWidth;
+      canvas.height = originalHeight;
+      setImageSmoothing(ctx, false);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(
+        hiddenCanvas,
+        0, 0, scaledWidth, scaledHeight,
+        0, 0, originalWidth, originalHeight
+      );
+
+      currentWidth = originalWidth;
+      currentHeight = originalHeight;
+      canvasLabel.textContent = "Pixelated image (block size: " + blockSize + "px).";
+      updateSizeLabels();
+    }
+
+    fileInput.addEventListener("change", function () {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        alert("Please choose an image file.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        originalImage = new Image();
+        originalImage.onload = function () {
+          originalWidth = originalImage.width;
+          originalHeight = originalImage.height;
+
+          origPreview.src = originalImage.src;
+          origPreview.style.display = "block";
+          origLabel.textContent = "Original " + originalWidth + " × " + originalHeight + ".";
+
+          drawOriginalToCanvas();
+        };
+        originalImage.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    pixelSizeRange.addEventListener("input", function () {
+      pixelSizeNumber.value = pixelSizeRange.value;
+    });
+
+    pixelSizeNumber.addEventListener("input", function () {
+      let v = parseInt(pixelSizeNumber.value, 10);
+      if (!v || v < 2) v = 2;
+      if (v > 80) v = 80;
+      pixelSizeNumber.value = v;
+      pixelSizeRange.value = v;
+    });
+
+    applyBtn.addEventListener("click", function () {
+      if (!originalWidth || !originalHeight) {
+        alert("Load an image first.");
+        return;
+      }
+      const size = parseInt(pixelSizeNumber.value, 10) || 8;
+      pixelateImage(size);
+    });
+
+    resetBtn.addEventListener("click", function () {
+      if (!originalWidth || !originalHeight) return;
+      drawOriginalToCanvas();
+    });
+
+    downloadBtn.addEventListener("click", function () {
+      if (!currentWidth || !currentHeight) {
+        alert("No pixelated image to download yet.");
+        return;
+      }
+      const dataUrl = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = "pixelated_" + currentWidth + "x" + currentHeight + ".png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    clearCanvas();
+  </script>
+</body>
+</html>
