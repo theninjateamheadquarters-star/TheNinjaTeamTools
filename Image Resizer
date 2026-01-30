@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Offline Image Resizer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #020617, #020617 40%, #000 100%);
+      color: #e5e7eb;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 16px;
+    }
+    .app {
+      width: 100%;
+      max-width: 900px;
+      background: #020617;
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
+      padding: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr);
+      gap: 16px;
+    }
+    @media (max-width: 800px) {
+      .app { grid-template-columns: 1fr; }
+    }
+    h1 {
+      font-size: 18px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+    p { font-size: 13px; color: #9ca3af; margin-bottom: 6px; }
+    label { font-size: 12px; color: #9ca3af; display: block; margin-bottom: 4px; }
+    input[type="number"] {
+      width: 100%;
+      padding: 4px 6px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 13px;
+    }
+    input[type="file"] {
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+    button {
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      background: rgba(15, 23, 42, 0.96);
+      color: #e5e7eb;
+      font-size: 12px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, border-color 0.08s ease;
+    }
+    button.primary {
+      border-color: rgba(56, 189, 248, 0.8);
+      background: radial-gradient(circle at top, rgba(56, 189, 248, 0.3), #020617);
+      color: #e0f2fe;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
+    }
+    button:hover {
+      transform: translateY(-1px);
+      border-color: #38bdf8;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.9);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .panel {
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: radial-gradient(circle at top left, #020617, #020617 40%, #0b1120 100%);
+      padding: 10px;
+    }
+    .panel-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+    .info-text {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    canvas, img {
+      max-width: 100%;
+      background: #020617;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+      display: block;
+    }
+    .preview-label {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+    .stat-line {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    .stat-line span {
+      color: #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT: controls -->
+    <section>
+      <h1>Image Resizer</h1>
+      <p>Open this file offline, load an image, pick a new size, and download the resized result.</p>
+
+      <div class="panel">
+        <div class="panel-title">1 · Choose Image</div>
+        <input id="file-input" type="file" accept="image/*">
+        <p class="info-text">PNG / JPG / GIF etc. stay local in your browser only.</p>
+      </div>
+
+      <div style="height: 8px;"></div>
+
+      <div class="panel">
+        <div class="panel-title">2 · Resize Options</div>
+
+        <div class="field-row">
+          <div>
+            <label for="width-input">Width (px)</label>
+            <input id="width-input" type="number" min="1" placeholder="auto">
+          </div>
+          <div>
+            <label for="height-input">Height (px)</label>
+            <input id="height-input" type="number" min="1" placeholder="auto">
+          </div>
+        </div>
+
+        <div class="checkbox-row">
+          <input id="lock-aspect" type="checkbox" checked>
+          <label for="lock-aspect">Keep aspect ratio</label>
+        </div>
+
+        <div class="btn-row">
+          <button id="apply-btn" class="primary" type="button">Apply resize</button>
+          <button id="reset-btn" type="button">Reset to original</button>
+        </div>
+
+        <p class="info-text">
+          If “keep aspect ratio” is on and you change width, height auto‑updates (and the other way around).
+        </p>
+
+        <div class="stat-line">Original: <span id="orig-size">–</span></div>
+        <div class="stat-line">Current: <span id="curr-size">–</span></div>
+      </div>
+
+      <div style="height: 8px;"></div>
+
+      <div class="panel">
+        <div class="panel-title">3 · Download</div>
+        <div class="btn-row">
+          <button id="download-btn" class="primary" type="button">Download resized image</button>
+        </div>
+        <p class="info-text">
+          This uses a hidden <code>&lt;a download&gt;</code> link so the browser saves the canvas as a real image you can move to your desktop or art folder.
+        </p>
+      </div>
+    </section>
+
+    <!-- RIGHT: previews -->
+    <section>
+      <div class="panel" style="margin-bottom: 8px;">
+        <div class="panel-title">Original preview</div>
+        <p class="preview-label" id="orig-label">No image loaded yet.</p>
+        <img id="orig-preview" alt="Original" style="display:none;">
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Resized preview (canvas)</div>
+        <p class="preview-label" id="canvas-label">Will show after you apply resize.</p>
+        <canvas id="canvas"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("file-input");
+    const widthInput = document.getElementById("width-input");
+    const heightInput = document.getElementById("height-input");
+    const lockAspect = document.getElementById("lock-aspect");
+    const applyBtn = document.getElementById("apply-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const downloadBtn = document.getElementById("download-btn");
+
+    const origPreview = document.getElementById("orig-preview");
+    const origLabel = document.getElementById("orig-label");
+    const canvas = document.getElementById("canvas");
+    const canvasLabel = document.getElementById("canvas-label");
+    const origSizeSpan = document.getElementById("orig-size");
+    const currSizeSpan = document.getElementById("curr-size");
+
+    const ctx = canvas.getContext("2d");
+
+    let originalImage = new Image();
+    let originalWidth = 0;
+    let originalHeight = 0;
+    let currentWidth = 0;
+    let currentHeight = 0;
+
+    function updateSizeLabels() {
+      if (originalWidth && originalHeight) {
+        origSizeSpan.textContent = originalWidth + " × " + originalHeight;
+      } else {
+        origSizeSpan.textContent = "–";
+      }
+      if (currentWidth && currentHeight) {
+        currSizeSpan.textContent = currentWidth + " × " + currentHeight;
+      } else {
+        currSizeSpan.textContent = "–";
+      }
+    }
+
+    function clearCanvas() {
+      canvas.width = 1;
+      canvas.height = 1;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawToCanvas(width, height) {
+      if (!originalWidth || !originalHeight) return;
+      canvas.width = width;
+      canvas.height = height;
+      ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(originalImage, 0, 0, width, height);
+      currentWidth = width;
+      currentHeight = height;
+      updateSizeLabels();
+      canvasLabel.textContent = "Resized image (" + width + " × " + height + ").";
+    }
+
+    fileInput.addEventListener("change", function () {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        alert("Please choose an image file.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        originalImage = new Image();
+        originalImage.onload = function () {
+          originalWidth = originalImage.width;
+          originalHeight = originalImage.height;
+
+          origPreview.src = originalImage.src;
+          origPreview.style.display = "block";
+          origLabel.textContent = "Original " + originalWidth + " × " + originalHeight + ".";
+
+          widthInput.value = originalWidth;
+          heightInput.value = originalHeight;
+          currentWidth = originalWidth;
+          currentHeight = originalHeight;
+          updateSizeLabels();
+          drawToCanvas(originalWidth, originalHeight);
+        };
+        originalImage.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    widthInput.addEventListener("input", function () {
+      if (!originalWidth || !originalHeight) return;
+      const newWidth = parseInt(widthInput.value, 10);
+      if (!newWidth || newWidth <= 0) return;
+      if (lockAspect.checked) {
+        const ratio = originalHeight / originalWidth;
+        const newHeight = Math.round(newWidth * ratio);
+        heightInput.value = newHeight;
+      }
+    });
+
+    heightInput.addEventListener("input", function () {
+      if (!originalWidth || !originalHeight) return;
+      const newHeight = parseInt(heightInput.value, 10);
+      if (!newHeight || newHeight <= 0) return;
+      if (lockAspect.checked) {
+        const ratio = originalWidth / originalHeight;
+        const newWidth = Math.round(newHeight * ratio);
+        widthInput.value = newWidth;
+      }
+    });
+
+    applyBtn.addEventListener("click", function () {
+      if (!originalWidth || !originalHeight) {
+        alert("Load an image first.");
+        return;
+      }
+      const newW = parseInt(widthInput.value, 10);
+      const newH = parseInt(heightInput.value, 10);
+      if (!newW || !newH || newW <= 0 || newH <= 0) {
+        alert("Enter valid width and height.");
+        return;
+      }
+      drawToCanvas(newW, newH);
+    });
+
+    resetBtn.addEventListener("click", function () {
+      if (!originalWidth || !originalHeight) return;
+      widthInput.value = originalWidth;
+      heightInput.value = originalHeight;
+      drawToCanvas(originalWidth, originalHeight);
+    });
+
+    downloadBtn.addEventListener("click", function () {
+      if (!currentWidth || !currentHeight) {
+        alert("No resized image to download yet.");
+        return;
+      }
+      const dataUrl = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = "resized_" + currentWidth + "x" + currentHeight + ".png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    clearCanvas();
+    updateSizeLabels();
+  </script>
+</body>
+</html>
